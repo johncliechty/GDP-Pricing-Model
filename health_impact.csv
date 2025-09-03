@@ -1,12 +1,5 @@
-Drug,Metric,Value,Notes
-Keytruda,5-Year Survival Rate Increase (NSCLC),~25%,From ~5% to ~30%
-Keytruda,QALY Gain (Adjuvant NSCLC),1.19,"Compared to routine observation"
-Keytruda,Productivity Regained,"1 year, median",Doubled median OS from 10.6 to 22.0 months
-Ozempic,MACE Reduction,20%,"In patients with overweight/obesity and CVD"
-Ozempic,All-Cause Mortality Reduction,19%,"In patients with overweight/obesity and CVD"
-Ozempic,QALY Gain (Obesity),0.25-0.9,"Over 30 years compared to lifestyle intervention"
-Insulin,Mortality Reduction (High Adherence),20%,"Compared to low adherence"
-Insulin,Complication Reduction (Eye, Kidney, Nerve),40%,"With effective blood sugar management"
-Sovaldi,Cure Rate (HCV),>95%,
-Sovaldi,QALY Gain,2.1,"Over a lifetime compared to no treatment"
-Sovaldi,Return on Investment,"14-16 months",Cost of treatment offset by healthcare savings
+Drug,Value Archetype,Primary Clinical Benefit,Mortality Reduction,Healthy Years Gained (QALYs),Cost-Effectiveness (ICER Range),Healthcare Savings Source,Productivity Gains Source,Key Economic Challenge
+Keytruda,"Probabilistic Durable Control",Increased long-term overall survival,"Reduced risk of death (e.g., HR=0.60 in NSCLC)","1.2-3.5 incremental QALYs (highly dependent on LTS assumption)","Often high ($>100,000/QALY); can be cost-effective (~$43,000/QALY) with LTS assumption",Avoidance of subsequent lines of therapy and end-of-life care,Extended survival and disease-free time in working-age population,"High price for heterogeneous benefit; cumulative budget impact"
+Ozempic,Broad-Based Risk Reduction,"MACE reduction and prevention of T2D/CVD progression","Reduced risk of all-cause death (HR=0.81 in SELECT trial)","0.25-0.9 incremental QALYs over lifetime","Not cost-effective at current prices (~$467,000/QALY); requires >80% price cut","Prevention of future diabetes, cardiovascular, and kidney disease events","Reduced absenteeism/presenteeism from obesity, T2D, and CVD",System-level budget impact due to vast eligible population
+Insulin,Foundational Chronic Management,"Glycemic control and prevention of acute/chronic complications","Reduced risk of death with high adherence (HR=0.80)","~0.1 incremental QALYs for modern vs. older analogs","Varies by type/delivery; modern analogs can be dominant (cheaper & more effective)","Avoidance of costly acute (DKA) and chronic (retinopathy, nephropathy) complications",Maintained work capacity by preventing disabling complications,Ensuring access and adherence to prevent high downstream costs
+Sovaldi,Definitive Cure,Viral eradication (cure) of HCV,"Prevents liver-related death by curing HCV","~2.1 incremental QALYs vs. no treatment","Highly cost-effective (~$26,000-$29,000/QALY)",Complete elimination of all future HCV-related medical care,Return to workforce and avoidance of long-term disability,"High, one-time upfront cost creates ""budget shock"" for payers"
