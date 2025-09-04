@@ -30,7 +30,7 @@ def model_drug_pricing(drug_name, anchor_country, anchor_price, cap_price_flag, 
     df['GDP Adjusted Price'] = (df['GDP per Capita'] / anchor_gdp_per_capita) * anchor_price
 
     # --- Refined Patient Adoption Logic ---
-    developed_regions = ['North America', 'Europe', 'Japan', 'Australia/NZ']
+    developed_regions = ['North America', 'Europe', 'Japan', 'Australia/NZ', 'Middle East']
 
     # Use current patients for developed regions, potential patients for others
     df['Scenario Patients'] = np.where(
@@ -83,24 +83,49 @@ def generate_visualizations(scenario_dfs, drug_name, output_folder):
 
     metrics_to_map = ['Revenue', 'Profit', 'QALYs Gained', 'Lives Saved', 'Productivity Gained']
     for scenario_name, df in scenario_dfs.items():
-        # Ensure ISO-3 codes are present for mapping
-        gapminder_df = px.data.gapminder().query("year==2007")
-        country_iso_map = gapminder_df.set_index('country')['iso_alpha'].to_dict()
+        # --- Comprehensive ISO-3 Mapping ---
+        gapminder_df = px.data.gapminder()
+        country_iso_map = gapminder_df[['country', 'iso_alpha']].drop_duplicates().set_index('country')[
+            'iso_alpha'].to_dict()
+
         manual_name_map = {
-            "Bolivia": "BOL", "Brunei Darussalam": "BRN", "Congo, Dem. Rep.": "COD",
-            "Congo, Rep.": "COG", "Czechia": "CZE", "Egypt, Arab Rep.": "EGY",
-            "Hong Kong SAR, China": "HKG", "Iran, Islamic Rep.": "IRN", "Korea, Rep.": "KOR",
-            "Lao PDR": "LAO", "Macao SAR, China": "MAC", "Moldova": "MDA",
-            "Russian Federation": "RUS", "Slovak Republic": "SVK", "Tanzania": "TZA",
-            "Taiwan, China": "TWN", "United Kingdom": "GBR", "United States": "USA",
-            "Venezuela, RB": "VEN", "Vietnam": "VNM", "Yemen, Rep.": "YEM"
+            "American Samoa": "ASM", "Andorra": "AND", "Antigua and Barbuda": "ATG", "Armenia": "ARM", "Aruba": "ABW",
+            "Azerbaijan": "AZE", "Bahamas, The": "BHS", "Barbados": "BRB", "Belarus": "BLR", "Belize": "BLZ",
+            "Bermuda": "BMU", "Bhutan": "BTN", "Bolivia": "BOL", "Bosnia and Herzegovina": "BIH",
+            "British Virgin Islands": "VGB", "Brunei Darussalam": "BRN", "Cabo Verde": "CPV", "Cayman Islands": "CYM",
+            "Congo, Dem. Rep.": "COD", "Congo, Rep.": "COG", "Cote d'Ivoire": "CIV", "Côte d'Ivoire": "CIV",
+            "Curaçao": "CUW", "Cyprus": "CYP", "Czechia": "CZE", "Dominica": "DMA", "Egypt, Arab Rep.": "EGY",
+            "Estonia": "EST", "Eswatini (Swaziland)": "SWZ", "Faroe Islands": "FRO", "Fiji": "FJI",
+            "French Polynesia": "PYF", "Gambia, The": "GMB", "Georgia": "GEO", "Gibraltar": "GIB",
+            "Greenland": "GRL", "Grenada": "GRD", "Guam": "GUM", "Guyana": "GUY", "Hong Kong SAR, China": "HKG",
+            "Iran, Islamic Rep.": "IRN", "Isle of Man": "IMN", "Kazakhstan": "KAZ", "Kiribati": "KIR",
+            "Korea, Dem. People's Rep.": "PRK", "Korea, Rep.": "KOR", "Kosovo": "XKX", "Kyrgyz Republic": "KGZ",
+            "Lao PDR": "LAO", "Latvia": "LVA", "Liechtenstein": "LIE", "Lithuania": "LTU", "Luxembourg": "LUX",
+            "Macao SAR, China": "MAC", "Maldives": "MDV", "Malta": "MLT", "Marshall Islands": "MHL",
+            "Micronesia, Fed. Sts.": "FSM", "Moldova": "MDA", "Monaco": "MCO", "Nauru": "NRU", "New Caledonia": "NCL",
+            "North Macedonia": "MKD", "Northern Mariana Islands": "MNP", "Palau": "PLW", "Papua New Guinea": "PNG",
+            "Qatar": "QAT", "Russian Federation": "RUS", "Samoa": "WSM", "San Marino": "SMR",
+            "Sao Tome and Principe": "STP", "Seychelles": "SYC", "Sint Maarten (Dutch part)": "SXM",
+            "Slovak Republic": "SVK", "Solomon Islands": "SLB", "South Sudan": "SSD", "St. Kitts and Nevis": "KNA",
+            "St. Lucia": "LCA", "St. Martin (French part)": "MAF", "St. Vincent and the Grenadines": "VCT",
+            "Suriname": "SUR", "Syrian Arab Republic": "SYR", "Taiwan, China": "TWN", "Tajikistan": "TJK",
+            "Tanzania": "TZA", "Timor-Leste": "TLS", "Tonga": "TON", "Türkiye": "TUR", "Turkmenistan": "TKM",
+            "Turks and Caicos Islands": "TCA", "Tuvalu": "TUV", "Ukraine": "UKR", "United Arab Emirates": "ARE",
+            "United Kingdom": "GBR", "United States": "USA", "Uzbekistan": "UZB", "Vanuatu": "VUT",
+            "Venezuela, RB": "VEN", "Vietnam": "VNM", "Virgin Islands (U.S.)": "VIR", "West Bank and Gaza": "PSE",
+            "Yemen, Rep.": "YEM"
         }
-        df['country_for_iso'] = df['Country'].replace(manual_name_map)
-        df['ISO-3'] = df['country_for_iso'].map(country_iso_map)
+
+        df['ISO-3'] = df['Country'].map(country_iso_map)
+        df['ISO-3'] = df['ISO-3'].fillna(df['Country'].map(manual_name_map))
+
+        missing_iso = df[df['ISO-3'].isnull()]
+        if not missing_iso.empty:
+            print(f"Warning: Final check could not find ISO-3 codes for: {missing_iso['Country'].unique()}")
 
         for metric in metrics_to_map:
             if metric in df.columns:
-                fig = px.choropleth(df, locations="ISO-3", locationmode='ISO-3', color=metric,
+                fig = px.choropleth(df.dropna(subset=['ISO-3']), locations="ISO-3", locationmode='ISO-3', color=metric,
                                     hover_name="Country",
                                     title=f"{metric.replace('_', ' ')} for {drug_name} ({scenario_name.replace('_', ' ')})",
                                     color_continuous_scale=px.colors.sequential.Plasma)
@@ -127,15 +152,18 @@ def generate_visualizations(scenario_dfs, drug_name, output_folder):
             price_column = 'Final Price'
             patient_column = 'Scenario Patients'
 
-        def weighted_avg(group, avg_name, weight_name):
-            d = group[avg_name]
-            w = group[weight_name]
-            if w.sum() == 0:
-                return 0
-            return (d * w).sum() / w.sum()
+        df_copy = df.copy()
+        df_copy['price_times_patients'] = df_copy[price_column] * df_copy[patient_column]
 
-        regional_prices = df.groupby('Region').apply(weighted_avg, price_column, patient_column,
-                                                     include_groups=False).reset_index(name='Avg Price')
+        grouped = df_copy.groupby('Region').agg(
+            total_price_patients=('price_times_patients', 'sum'),
+            total_patients=(patient_column, 'sum')
+        ).reset_index()
+
+        grouped['Avg Price'] = grouped['total_price_patients'] / grouped['total_patients']
+        grouped['Avg Price'] = grouped['Avg Price'].fillna(0)
+
+        regional_prices = grouped[['Region', 'Avg Price']].copy()  # Use .copy() to avoid SettingWithCopyWarning
         regional_prices['Scenario'] = scenario_name.replace('_', ' ')
         regional_price_data.append(regional_prices)
 
@@ -203,9 +231,9 @@ def generate_pdf_report(report_data, drug_name, assumptions_df, output_folder):
         "The model is based on several key assumptions:\n"
         "- **Current System:** Revenue is calculated from countries with known prices. A 'Medical Tourism' component is added to match Merck's reported global revenue of $29.5B. This component is now smaller due to more countries having listed prices.\n"
         "- **GDP-Adjusted Models:** Price is adjusted based on GDP per capita relative to an anchor country. These models assume expanded access.\n"
-        "- **Patient Adoption:** For GDP models, patient numbers for developed nations are held at current levels, while Low- and Middle-Income Countries expand to their 'Potential Patient' forecast, reflecting where new access occurs.\n"
+        "- **Patient Adoption:** For GDP models, patient numbers for developed nations (North America, Europe, Japan, Aus/NZ, Middle East) are held at current levels, while Low- and Middle-Income Countries expand to their 'Potential Patient' forecast, reflecting where new access occurs.\n"
         "- **US Revenue in China-Anchored Model:** The high US revenue (~$20B) in this scenario is a direct result of the formula, highlighting that non-price factors also limit access.\n"
-        "- **Pricing Data:** Sourced from provided documents and external research (see country_price_assumptions.csv)."
+        "- **Pricing and Population Data:** Sourced from provided documents, World Bank data, and external research (see country_price_assumptions.csv)."
     )
     pdf.multi_cell(0, 5, assumptions_text)
     pdf.ln(5)
@@ -298,8 +326,9 @@ def main():
     for col in ['GDP (Current US$)', 'Total Health Expenditure (Current US$)']:
         country_data_df[col] = country_data_df[col].apply(parse_financial_string)
 
-    country_data_df['Population'] = (country_data_df['Insulin - Est. Patient Population'] * 10).replace(0, np.nan)
-    country_data_df['GDP per Capita'] = country_data_df['GDP (Current US$)'] / country_data_df['Population']
+    # Use the new accurate Population column for GDP per Capita
+    country_data_df['GDP per Capita'] = (country_data_df['GDP (Current US$)'] / country_data_df['Population']).replace(
+        [np.inf, -np.inf], 0)
 
     country_data_df = country_data_df.fillna(0)
     country_data_df['Potential Patients'] = country_data_df['Potential Patients'].astype(int)
