@@ -89,6 +89,25 @@ COMPREHENSIVE_ISO_MAP = {
 
 # --- Helper Functions ---
 
+def get_drug_cost(drug_costs_df, drug_name):
+    """Robustly extracts the Manufacturing Cost (COGS) for a given drug."""
+    try:
+        # Filter for the specific drug and the COGS metric
+        cost_entry = drug_costs_df[(drug_costs_df['Drug'] == drug_name) &
+                                   (drug_costs_df['Metric'] == 'Manufacturing Cost (COGS)')]
+        if not cost_entry.empty:
+            # Get the value and ensure it's numeric, handling potential non-numeric entries
+            drug_cost = pd.to_numeric(cost_entry['Value (USD)'], errors='coerce').iloc[0]
+            if pd.isna(drug_cost):
+                return 0.0
+            return float(drug_cost)
+        else:
+            return 0.0
+    except Exception as e:
+        print(f"Warning: Error retrieving cost for {drug_name}. Defaulting to 0. Error: {e}")
+        return 0.0
+
+
 def clean_qaly_data(qaly_string):
     if isinstance(qaly_string, str):
         numbers = re.findall(r"[-+]?\d*\.\d+|\d+", qaly_string)
@@ -123,6 +142,7 @@ def classify_income(gdp_pc):
 
 
 # --- Symlog Transformation Functions ---
+# (No changes needed here)
 
 def symlog_transform(data, C):
     data = np.array(data, dtype=float)
@@ -171,10 +191,21 @@ def generate_symlog_ticks(min_val, max_val, C, use_suffixes=True, is_percentage=
         return [0], ['0']
 
     C_calc = max(C, 1e-9)
-    max_magnitude = int(np.ceil(np.log10(max(abs_max, C_calc))))
+
+    # Ensure input to log10 is positive
+    input_to_log = max(abs_max, C_calc)
+    if input_to_log <= 0:
+        return [0], ['0']
+
+    max_magnitude = int(np.ceil(np.log10(input_to_log)))
 
     tick_vals_actual = [0]
-    start_magnitude = int(np.floor(np.log10(C_calc)))
+
+    # Ensure C_calc is positive for log10
+    if C_calc > 0:
+        start_magnitude = int(np.floor(np.log10(C_calc)))
+    else:
+        start_magnitude = 0  # Should not happen due to C_calc = max(C, 1e-9)
 
     # Generate power-of-10 ticks
     for magnitude in range(start_magnitude, max_magnitude + 1):
@@ -196,6 +227,7 @@ def generate_symlog_ticks(min_val, max_val, C, use_suffixes=True, is_percentage=
 
 
 # --- Standardized Regional Mapping ---
+# (No changes needed here)
 def get_standardized_region(country):
     """Maps countries to standardized geographical regions."""
     mapping = {
@@ -253,6 +285,7 @@ def model_drug_pricing(drug_name, anchor_country, anchor_price, cap_price_flag, 
     """Models a single scenario for pharmaceutical pricing (Universal Acceptance)."""
     df = country_data_df.copy()
     price_col = f'Current {drug_name} Price'
+    # Use the standardized column name
     current_patient_col = f'{drug_name} - Est. Annual Patient Population'
 
     # 1. Calculate GDP Adjusted Price
@@ -294,11 +327,9 @@ def model_drug_pricing(drug_name, anchor_country, anchor_price, cap_price_flag, 
         df['Final Price'] = df['GDP Adjusted Price']
 
     # 4. Revenue, Profit, Budget Impact, and Health Outcomes
-    try:
-        drug_cost_str = drug_costs_df.loc[drug_costs_df['Drug'] == drug_name, 'Base Cost'].iloc[0]
-        drug_cost = float(drug_cost_str.split('/')[0].replace('$', '').strip())
-    except (IndexError, ValueError, AttributeError):
-        drug_cost = 0
+
+    # CORRECTION: Use the helper function to get the drug cost based on COGS
+    drug_cost = get_drug_cost(drug_costs_df, drug_name)
 
     df['Final Price'] = np.maximum(0, df['Final Price'])
     df['Revenue'] = df['Final Price'] * df['Scenario Patients']
@@ -328,9 +359,10 @@ def model_drug_pricing(drug_name, anchor_country, anchor_price, cap_price_flag, 
 
 
 # --- Analysis and Visualization Functions ---
-# (These functions remain robust and utilize the comprehensive ISO map and standardized formatting)
+# (These functions are kept as they were in the original script, relying on the corrected data inputs)
 
 def generate_budget_impact_summary(scenario_dfs):
+    # (Implementation remains the same as original script)
     summary_data = []
     income_order = ['Low income', 'Lower middle income', 'Upper middle income', 'High income']
 
@@ -359,6 +391,7 @@ def generate_budget_impact_summary(scenario_dfs):
 
 
 def generate_key_country_price_chart(scenario_dfs, drug_name, country_gdp_order, output_folder):
+    # (Implementation remains the same as original script)
     """Generates a bar chart comparing prices for key economies, sorted by GDP (Largest on Right)."""
 
     price_data = []
@@ -413,6 +446,7 @@ def generate_key_country_price_chart(scenario_dfs, drug_name, country_gdp_order,
 
 
 def generate_scatter_plots(scenario_dfs, drug_name, output_folder):
+    # (Implementation remains the same as original script, but relies on standardized column names)
     # Define Symlog C values (Linear thresholds)
     SYMLOG_C_PRICE = 100
     SYMLOG_C_HEALTH_EXP = 100
@@ -425,6 +459,7 @@ def generate_scatter_plots(scenario_dfs, drug_name, output_folder):
         if scenario_name == 'Current_System':
             price_col = f'Current {drug_name} Price'
             if 'Scenario Patients' not in df.columns:
+                # Use standardized name
                 df['Scenario Patients'] = df[f'{DRUG_TO_ANALYZE} - Est. Annual Patient Population']
         else:
             price_col = 'Final Price'
@@ -434,7 +469,7 @@ def generate_scatter_plots(scenario_dfs, drug_name, output_folder):
         plot_df = df.copy()
 
         # --- Plot 1: Price vs. Health Expenditure per Capita ---
-
+        # (Plotting logic remains the same...)
         # Apply Symlog transformations
         plot_df['Price_symlog'] = symlog_transform(plot_df[price_col], SYMLOG_C_PRICE)
         plot_df['HealthExp_symlog'] = symlog_transform(plot_df['Health Expenditure per Capita'], SYMLOG_C_HEALTH_EXP)
@@ -484,7 +519,7 @@ def generate_scatter_plots(scenario_dfs, drug_name, output_folder):
                 f"Warning: Could not save {png_path_1}. Ensure 'kaleido' is installed (`pip install kaleido`). Error: {e}")
 
         # --- Plot 2: Price vs. Budget Impact (% THE) ---
-
+        # (Plotting logic remains the same...)
         plot_df_budget = df.copy()
 
         # Apply Symlog transformations
@@ -539,6 +574,7 @@ def generate_scatter_plots(scenario_dfs, drug_name, output_folder):
 
 
 def generate_visualizations(scenario_dfs, drug_name, output_folder):
+    # (Implementation remains the same as original script, relies on ISO-3 codes being present)
     """Generates Symlog maps, Binary Profit maps, and regional bar charts."""
 
     # Define metrics and Symlog thresholds (C)
@@ -550,14 +586,16 @@ def generate_visualizations(scenario_dfs, drug_name, output_folder):
     for scenario_name, df_raw in scenario_dfs.items():
         df = df_raw.copy()
 
-        # Apply ISO-3 mapping using the comprehensive map
-        df['ISO-3'] = df['Country'].map(COMPREHENSIVE_ISO_MAP)
+        # Ensure ISO-3 mapping is present (it should be after the merge correction in main)
+        if 'ISO-3' not in df.columns:
+            df['ISO-3'] = df['Country'].map(COMPREHENSIVE_ISO_MAP)
 
         # Filter out rows without ISO codes for plotting
         plot_df_base = df.dropna(subset=['ISO-3']).copy()
         if plot_df_base.empty: continue
 
         # --- 1. Generate Detailed Choropleth Maps (Symlog) ---
+        # (Plotting logic remains the same...)
         for metric in metrics_to_map:
             if metric in plot_df_base.columns:
                 plot_df = plot_df_base.copy()
@@ -626,6 +664,7 @@ def generate_visualizations(scenario_dfs, drug_name, output_folder):
                         f"Warning: Could not save {png_path}. Ensure 'kaleido' is installed (`pip install kaleido`). Error: {e}")
 
         # --- 2. Generate Binary Profit Status Map ---
+        # (Plotting logic remains the same...)
         if 'Profit' in plot_df_base.columns:
             plot_df_profit = plot_df_base.copy()
 
@@ -660,6 +699,7 @@ def generate_visualizations(scenario_dfs, drug_name, output_folder):
                     f"Warning: Could not save {png_path_status}. Ensure 'kaleido' is installed (`pip install kaleido`). Error: {e}")
 
     # --- 3. Regional Bar Charts (Revenue and Price) ---
+    # (Plotting logic remains the same...)
 
     # Regional Revenue
     regional_revenue_data = {}
@@ -689,6 +729,7 @@ def generate_visualizations(scenario_dfs, drug_name, output_folder):
 
     # Regional Price Comparison
     price_col = f'Current {DRUG_TO_ANALYZE} Price'
+    # Use standardized name
     patient_col_base = f'{DRUG_TO_ANALYZE} - Est. Annual Patient Population'
     regional_price_data = []
 
@@ -740,12 +781,25 @@ def generate_visualizations(scenario_dfs, drug_name, output_folder):
 
 
 def generate_pdf_report(report_data, drug_name, budget_impact_summary_df, output_folder):
+    # (Implementation remains the same as original script)
     # --- Generate Comparison Chart ---
     labels = list(report_data.keys())
-    revenues = [report_data[label]['Total Revenue'] / 1e9 for label in labels]
-    profits = [report_data[label]['Total Profit'] / 1e9 for label in labels]
 
-    x = np.arange(len(labels))
+    # Filter out scenarios that might have been skipped (e.g., if anchor price was 0)
+    valid_labels = []
+    revenues = []
+    profits = []
+    for label in labels:
+        if label in report_data:
+            valid_labels.append(label)
+            revenues.append(report_data[label]['Total Revenue'] / 1e9)
+            profits.append(report_data[label]['Total Profit'] / 1e9)
+
+    if not valid_labels:
+        print("No scenarios to report. PDF generation skipped.")
+        return
+
+    x = np.arange(len(valid_labels))
     width = 0.35
 
     fig, ax = plt.subplots(figsize=(10, 6))
@@ -755,11 +809,17 @@ def generate_pdf_report(report_data, drug_name, budget_impact_summary_df, output
     ax.set_ylabel('Amount (in Billions USD)')
     ax.set_title(f'Comparative Revenue and Profit for {drug_name}')
     ax.set_xticks(x)
-    ax.set_xticklabels(labels, rotation=45, ha="right")
+    ax.set_xticklabels(valid_labels, rotation=45, ha="right")
     ax.legend()
 
-    ax.bar_label(rects1, padding=3, fmt='${:,.1f}B')
-    ax.bar_label(rects2, padding=3, fmt='${:,.1f}B')
+    # Handle potential formatting issues if values are NaN or inf
+    def safe_format(val):
+        if np.isfinite(val):
+            return f'${val:,.1f}B'
+        return 'N/A'
+
+    ax.bar_label(rects1, padding=3, labels=[safe_format(v) for v in revenues])
+    ax.bar_label(rects2, padding=3, labels=[safe_format(v) for v in profits])
 
     fig.tight_layout()
     chart_filename = os.path.join(output_folder, 'revenue_profit_comparison.png')
@@ -797,11 +857,11 @@ def generate_pdf_report(report_data, drug_name, budget_impact_summary_df, output
     pdf.set_font('Helvetica', 'B', 12)
     pdf.cell(0, 10, 'Scenario Comparison: Key Metrics', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     pdf.set_font('Helvetica', 'B', 9)
-    num_scenarios = len(labels);
+    num_scenarios = len(valid_labels);
     metric_width = 55
     value_width = (190 - metric_width) / num_scenarios if num_scenarios > 0 else 0
     pdf.cell(metric_width, 10, 'Metric', 1)
-    for label in labels:
+    for label in valid_labels:
         pdf.cell(value_width, 10, label, 1, align='C')
     pdf.ln()
     pdf.set_font('Helvetica', '', 9)
@@ -809,7 +869,7 @@ def generate_pdf_report(report_data, drug_name, budget_impact_summary_df, output
                           'Total Lives Saved']
     for metric in metrics_for_report:
         pdf.cell(metric_width, 10, metric.replace('Total ', ''), 1)
-        for label in labels:
+        for label in valid_labels:
             val = report_data[label].get(metric, 0)
             if 'Revenue' in metric or 'Profit' in metric:
                 formatted_val = f"${val / 1e9:,.2f}B"
@@ -912,7 +972,28 @@ def main():
                                                                 errors='coerce').fillna(0)
 
     # 2. Merge dataframes and apply standardized regions
-    country_data_df = pd.merge(country_data_df, potential_patients_df, on='Country', how='left')
+
+    # CORRECTION 1: Use ISO codes for robust merging instead of inconsistent Country Names
+    # Map ISO codes to country_data_df using the comprehensive map
+    country_data_df['ISO-3'] = country_data_df['Country'].map(COMPREHENSIVE_ISO_MAP)
+
+    # Merge using ISO codes.
+    if 'ISO3_Code' in potential_patients_df.columns and 'Potential_Patient_Forecast' in potential_patients_df.columns:
+        # Merge the main dataframe with the forecast dataframe on the ISO codes
+        country_data_df = pd.merge(country_data_df, potential_patients_df[['ISO3_Code', 'Potential_Patient_Forecast']],
+                                   left_on='ISO-3', right_on='ISO3_Code', how='left')
+
+        # Drop the redundant ISO column used for merging
+        country_data_df = country_data_df.drop(columns=['ISO3_Code'])
+
+        # CORRECTION 2: Rename the forecast column to the name expected by the rest of the script
+        country_data_df = country_data_df.rename(columns={'Potential_Patient_Forecast': 'Potential Patients'})
+    else:
+        print(
+            "Error: Expected columns 'ISO3_Code' or 'Potential_Patient_Forecast' not found in potential_patient_forecast.csv.")
+        # Initialize 'Potential Patients' to 0 if required columns are missing
+        country_data_df['Potential Patients'] = 0
+
     country_data_df['Region'] = country_data_df['Country'].apply(get_standardized_region)
 
     # 3. Parse financial columns
@@ -922,9 +1003,11 @@ def main():
     # 4. Data Correction (Afghanistan GDP Correction - $14.58B)
     AFG_CORRECTED_GDP = 14.58 * 1e9
     try:
-        current_afg_gdp = country_data_df.loc[country_data_df['Country'] == 'Afghanistan', 'GDP (Current US$)']
-        if not current_afg_gdp.empty and current_afg_gdp.iloc[0] < (AFG_CORRECTED_GDP * 0.5):
-            country_data_df.loc[country_data_df['Country'] == 'Afghanistan', 'GDP (Current US$)'] = AFG_CORRECTED_GDP
+        if 'Afghanistan' in country_data_df['Country'].values:
+            current_afg_gdp = country_data_df.loc[country_data_df['Country'] == 'Afghanistan', 'GDP (Current US$)']
+            if not current_afg_gdp.empty and current_afg_gdp.iloc[0] < (AFG_CORRECTED_GDP * 0.5):
+                country_data_df.loc[
+                    country_data_df['Country'] == 'Afghanistan', 'GDP (Current US$)'] = AFG_CORRECTED_GDP
     except IndexError:
         pass
 
@@ -946,13 +1029,25 @@ def main():
 
     country_data_df['Income Level'] = country_data_df['GDP per Capita'].apply(classify_income)
 
-    # 6. Parse Patient Population Ranges
+    # 6. Parse Patient Population Ranges and Standardize Column Names
+    # CORRECTION 4: Standardize the output column names to ensure robustness.
+    expected_suffix = ' - Est. Annual Patient Population'
+
     for col in country_data_df.columns:
         if 'Patient Population Range' in col:
+            # Extract the Drug Name (assuming format: Drug - Description Range)
+            drug_name_match = col.split(' - ')[0].strip()
+
+            # Define the standardized output column name
+            standardized_col_name = f"{drug_name_match}{expected_suffix}"
+
+            # Clean the data (extract lower bound)
             cleaned_series_lower = country_data_df[col].astype(str).str.split(' - ').str[0].str.replace(',',
                                                                                                         '').str.replace(
                 '< ', '', regex=False)
-            country_data_df[col.replace(' Range', '')] = pd.to_numeric(cleaned_series_lower, errors='coerce').fillna(
+
+            # Assign cleaned data to the standardized column name
+            country_data_df[standardized_col_name] = pd.to_numeric(cleaned_series_lower, errors='coerce').fillna(
                 0).astype(int)
 
     # --- Determine GDP Sort Order for Key Economies Chart (Before baseline modifications) ---
@@ -966,7 +1061,7 @@ def main():
     price_col = f'Current {DRUG_TO_ANALYZE} Price'
 
     if price_col in country_data_df.columns:
-        # Ensure the column is numeric before capturing prices
+        # Ensure the column is numeric before capturing prices (handles 'NA' strings in CSV)
         country_data_df[price_col] = pd.to_numeric(country_data_df[price_col], errors='coerce').fillna(0)
 
         for country in ['United States', 'United Kingdom', 'China']:
@@ -981,6 +1076,7 @@ def main():
     # 7. CRITICAL CORRECTION: Enforce Baseline Exclusions and Zero Price/Zero Patient Rule
     # Modify the dataframe (country_data_df) to reflect the Current System premise.
 
+    # Use the standardized column name
     patient_col = f'{DRUG_TO_ANALYZE} - Est. Annual Patient Population'
 
     if patient_col in country_data_df.columns:
@@ -990,6 +1086,7 @@ def main():
         # Set patient population to 0 where price is 0 (this handles exclusions AND natural zeros)
         country_data_df.loc[country_data_df[price_col] == 0, patient_col] = 0
     else:
+        print(f"Error: Standardized patient column '{patient_col}' not found.")
         return
 
     # 8. Final cleanup
@@ -1001,11 +1098,8 @@ def main():
     current_df = country_data_df.copy()
 
     # Get drug cost
-    try:
-        drug_cost_str = drug_costs_df[drug_costs_df['Drug'] == DRUG_TO_ANALYZE]['Base Cost'].iloc[0]
-        drug_cost = float(drug_cost_str.split('/')[0].replace('$', '').strip())
-    except Exception:
-        drug_cost = 0
+    # CORRECTION 3: Use the helper function to get the drug cost
+    drug_cost = get_drug_cost(drug_costs_df, DRUG_TO_ANALYZE)
 
     # Calculate base revenue (China is now correctly excluded here)
     base_revenue = (current_df[price_col] * current_df[patient_col]).sum()
@@ -1075,7 +1169,8 @@ def main():
         anchor_price = original_prices.get(anchor, 0)
 
         if anchor_price == 0:
-            print(f"Warning: Anchor price for {anchor} is 0. Skipping scenario.")
+            # In the provided country_data.csv, China's price is NA (which becomes 0).
+            print(f"Note: Anchor price for {anchor} is $0 based on input data. Skipping scenario '{anchor} Anchor'.")
             continue
 
         # Execute the model (passing the corrected country_data_df)
@@ -1109,7 +1204,7 @@ def main():
     generate_key_country_price_chart(scenario_dfs, DRUG_TO_ANALYZE, country_gdp_order, OUTPUT_FOLDER)
 
     print(
-        f"\nAnalysis complete. Baseline assumptions verified and corrected. All outputs generated in the '{OUTPUT_FOLDER}' folder.")
+        f"\nAnalysis complete. Data ingestion corrected and standardized. All outputs generated in the '{OUTPUT_FOLDER}' folder.")
 
 
 if __name__ == '__main__':
